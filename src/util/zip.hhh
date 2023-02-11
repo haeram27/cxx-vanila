@@ -1,0 +1,58 @@
+#pragma once
+
+#include <string>
+#include <memory>
+#include <ctime>
+#include <zip.h>
+#include "path.h"
+
+namespace util {
+namespace archive {
+
+class zip {
+    struct unique_zip_file_t : public std::unique_ptr<zip_file_t, decltype(&::zip_fclose)> {
+        using base = std::unique_ptr<zip_file_t, decltype(&::zip_fclose)>;
+        unique_zip_file_t() = delete;
+        unique_zip_file_t(base::pointer p) noexcept : base(p, ::zip_fclose) {}
+    };
+
+ public:
+    using size_t = zip_uint64_t;
+
+    zip() = delete;
+    explicit zip(const std::string &filename);
+    virtual ~zip() = default;
+
+    size_t size() const;
+
+    void extract(const std::string &target_dir = std::string{});
+
+ protected:
+    zip_stat_t stat(const zip_uint64_t i, const zip_flags_t flags = 0) const;
+    template <class T>
+    T &read_entry(const zip_uint64_t entry, T &buf_cont) {
+        unique_zip_file_t f {zip_fopen_index(archive_.get(), entry, 0)};
+        if (!f) {
+            throw std::runtime_error {
+                std::string{"Failed to open a file ("} + stat(entry).name + ") in zip file " + filename_};
+        }
+        if (zip_fread(f.get(), &buf_cont[0], buf_cont.size()) == -1) {
+            throw std::runtime_error {
+                std::string{"Failed to read a file ("} + stat(entry).name + ") in zip file " + filename_};
+        }
+        return buf_cont;
+    }
+
+    // File type and mode (including permissions) -- st_mode in man 7 inode
+    decltype(stat::st_mode) mode(const zip_uint64_t i, const zip_flags_t flags = 0) const;
+    bool timestamp(const int fd, const decltype(zip_stat_t::mtime) &mtime);
+    bool timestamp(const std::string &filename, const decltype(zip_stat_t::mtime) &mtime);
+
+ private:
+    int zip_error;
+    const std::string filename_;
+    const std::unique_ptr<zip_t, decltype(&::zip_close)> archive_;
+};
+
+} // namespace archive
+} // namespace util

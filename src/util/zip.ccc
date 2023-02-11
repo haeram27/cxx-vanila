@@ -1,0 +1,191 @@
+#include <fstream>
+#include <limits>
+#include <sstream>
+#include <chrono>
+#include <map>
+#include <stdexcept>
+#include <cstdlib>
+#include <ctime>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <utime.h>
+#include "zip.h"
+#include "path.h"
+#include "err.h"
+
+namespace util {
+namespace archive {
+
+class unique_fd {
+ public:
+    unique_fd() = delete;
+    explicit unique_fd(const int fd) : fd_(fd) {}
+    virtual ~unique_fd() { if (fd_ != invalid_) ::close(fd_); }
+
+    operator int() const {return fd_;}
+
+ private:
+    static constexpr int invalid_ {-1};
+    int fd_ {invalid_};
+};
+constexpr int unique_fd::invalid_;
+
+zip::zip(const std::string &filename) :
+    zip_error(ZIP_ER_OK),
+    filename_(filename),
+    archive_(zip_open(filename_.c_str(), ZIP_CHECKCONS | ZIP_RDONLY, &zip_error), ::zip_close)
+{
+    if (!archive_) throw std::runtime_error {"Failed to open zip archive : " + filename_};
+}
+
+zip::size_t zip::size() const
+{
+    const auto n {zip_get_num_entries(archive_.get(), zip_flags_t{})};
+    if (n == -1) throw std::runtime_error {"Failed to count # of entries in zip archive " + filename_};
+
+    return static_cast<decltype(zip::size())>(n);
+}
+
+zip_stat_t zip::stat(const zip_uint64_t i, const zip_flags_t flags) const {
+    zip_stat_t sb;
+    zip_stat_init(&sb);
+
+    constexpr zip_flags_t valid_flags_mask_ {
+        ZIP_STAT_NAME |
+        ZIP_STAT_INDEX |
+        ZIP_STAT_SIZE |
+        ZIP_STAT_COMP_SIZE |
+        ZIP_STAT_MTIME |
+        ZIP_STAT_CRC |
+        ZIP_STAT_COMP_METHOD |
+        ZIP_STAT_ENCRYPTION_METHOD |
+        ZIP_STAT_FLAGS
+    };
+    if (zip_stat_index(archive_.get(), i, flags, &sb) || !(sb.valid & valid_flags_mask_)) {
+        throw std::runtime_error {"Failed to get stat of " + filename_};
+    }
+    return sb;
+}
+
+decltype(stat::st_mode) zip::mode(const zip_uint64_t i, const zip_flags_t flags) const
+{
+    zip_uint8_t opsys;
+    zip_uint32_t attr;
+    if (zip_file_get_external_attributes(archive_.get(), i, flags, &opsys, &attr)) {
+        throw std::runtime_error {"Failed to get extra attributes of zip file : " + filename_};
+    }
+
+    decltype(zip::mode(0, 0)) m;
+    switch (opsys) {
+        case ZIP_OPSYS_UNIX:
+            // UNIX permission is stored in high-order 2 bytes of external attributes
+            // https://stackoverflow.com/questions/434641/how-do-i-set-permissions-attributes-on-a-file-in-a-zip-file-using-pythons-zip/6297838#6297838
+            // https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT
+            m = attr >> 16;
+            break;
+        case ZIP_OPSYS_DOS:
+        case ZIP_OPSYS_WINDOWS_NTFS:
+            m = 0444;
+            if (!(/* readonly */ attr & 0x01)) m |= 0222;
+            if (/* directory */ attr & 0x10)   m |= 0111 | ((S_IFDIR | (m & static_cast<decltype(m)>(~S_IFMT))));
+            break;
+        default:
+            throw std::logic_error {"Unexpected OS for zip is entered : " + std::to_string(opsys)};
+    }
+
+    return m;
+}
+
+// TODO handling error from libzip is clumsy yet
+void zip::extract(const std::string &dir)
+{
+    const auto n {size()};
+
+    std::map<std::string, const decltype(zip_stat_t::mtime)> dir_utimes;
+    for (size_t i{0}; i < n; ++i) {
+        const auto sb {stat(i)};
+        if (std::numeric_limits<std::streamsize>::max() < sb.size) {
+            std::ostringstream err;
+            err << "A file size(" << sb.size << ")"
+                << " in zip archve (" << filename_ << ") is exceeded than expected";
+            throw std::runtime_error {err.str()};
+        }
+
+        const auto full_path {dir.empty() ? sb.name : util::path::MakePath({dir, sb.name})};
+
+        const auto attr {mode(i)};
+        if (S_ISLNK(attr)) {           // symbolic link
+            std::string link_target(sb.size + 1, 0x00);
+            if (::symlink(read_entry(i, link_target).c_str(), full_path.c_str()) != 0) {
+                throw std::runtime_error {
+                    "Failed to create symbolic link to " + dir + " from " + sb.name + " in zip " + filename_};
+            }
+            timestamp(full_path, sb.mtime);
+        } else if (S_ISDIR(attr)) {    // directory
+            if (!util::path::mkdir(full_path))
+                throw std::runtime_error {std::string{"Failed to create directory while unzip : "} + sb.name};
+            // put timestamp of directories at to bottom as it's beging changed while extracting
+            dir_utimes.emplace(full_path, sb.mtime);
+        } else {
+            std::vector<uint8_t> buf(sb.size);
+            read_entry(i, buf);
+
+            const unique_fd fd {::creat(full_path.c_str(), attr & 07777)};
+            if (fd == -1) {
+                std::ostringstream err;
+                err << "Failed to create a file " << sb.name << " from zip " << filename_;
+                throw std::runtime_error {util::err::strerror(err.str())};
+            }
+
+            const auto written {::write(fd, &buf.at(0), buf.size())};
+            if (written == -1) {
+                throw std::runtime_error{std::string{"Failed to write entry : "} + sb.name + " in zip " + filename_};
+            } else if (static_cast<size_t>(written) != buf.size()) {
+                throw std::runtime_error{
+                    std::string{"Unexpected error while write entry : "} + sb.name + " in zip " + filename_};
+            }
+            timestamp(fd, sb.mtime);
+        }
+    }
+
+    for (auto i {dir_utimes.crbegin()}; i != dir_utimes.crend(); ++i) {
+        timestamp(i->first.c_str(), i->second);
+    }
+}
+
+bool zip::timestamp(const int fd, const decltype(zip_stat_t::mtime) &mtime)
+{
+    using std::chrono::seconds;
+    using std::chrono::nanoseconds;
+    using std::chrono::duration_cast;
+    using std::chrono::system_clock;
+
+    const auto now {system_clock::now().time_since_epoch()};
+    const auto modified {system_clock::from_time_t(mtime).time_since_epoch()};
+    const timespec timespec[2] {
+        {
+            .tv_sec = duration_cast<seconds>(now).count(),
+            .tv_nsec = duration_cast<nanoseconds>(now % seconds{1}).count(),
+        },
+        {
+            .tv_sec = duration_cast<seconds>(modified).count(),
+            .tv_nsec = duration_cast<nanoseconds>(modified % seconds{1}).count(),
+        }
+    };
+    return ::futimens(fd, timespec) == 0;
+}
+
+bool zip::timestamp(const std::string &filename, const decltype(zip_stat_t::mtime) &mtime)
+{
+    utimbuf utimbuf {
+        .actime = std::time(nullptr),
+        .modtime = mtime,
+    };
+
+    return ::utime(filename.c_str(), &utimbuf) == 0;
+}
+
+} // namespace archive
+} // namespace util

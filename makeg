@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+## main$ ./makeg VanilaTest.test1
+## main$ ./makeg "VanilaTest.*"
+## main$ ./makeg VanilaTest.\*
+make -j32 gtest.run "$1"
