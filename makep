@@ -2,5 +2,6 @@
 
 ## run make with 120% of core jobs for maximum performance
 realnum=`cat /proc/cpuinfo | grep cores | wc -l `
-let bestnum=$realnum+$(printf %.0f `echo "$realnum*0.2"|bc`)
+#let bestnum=$realnum+$(printf %.0f `echo "$realnum*0.2"|bc`)
+let bestnum=$realnum
 make -j`echo $bestnum` $*

@@ -109,6 +109,8 @@ endef
 ###########################
 # PHONY RECIPES
 ###########################
+.DEFAULT_GOAL=all
+
 .PHONY: all
 all: main
 
@@ -206,25 +208,24 @@ print-%:;$(info $* is a $(flavor $*) variable set to [$($*)])@:
 
 
 ############################
-# TARGETS THAT HAVE NO RULES
+# TARGETS HAVE NO RULES BUT NO NEED TOBE ERROR
 ############################
-define _NOT_TO_MAKE
-$1:;@echo [NORULES] $$@
-endef
-
-define _NOT_TO_MAKE_EXT
-%.$T:;@echo [NORULES] $$@
-endef
-
 #==========================
-# Prevent to make header file specified in .d when it is removed from FS.
-$(foreach T, $(HDREXT), $(eval $(_NOT_TO_MAKE_EXT)))
+# Prevent to "No rule to make target" ERROR when header file specified in .d is removed from FS.
+define _NOT_TO_MAKE
+$1:;@echo WARNING: TARGET($$@) HAS NO RULES
+endef
 #$(foreach T, $(HDREXT), $(eval $(call _NOT_TO_MAKE,%.$T)))
 
+define _NOT_TO_MAKE_EXT
+%.$(ext):;@echo WARNING: Header($$@) is removed
+endef
+$(foreach ext, $(HDREXT), $(eval $(_NOT_TO_MAKE_EXT)))
+
 #==========================
-# All targets that have no rule.
-#%:;@echo [NORULES] $$@
-#.DEFAULT:;@echo [NORULES] ...
+# % and .DEFAULT match with All targets that have no rule.
+#%:;@echo WARNING: TARGET($$@) HAS NO RULES
+#.DEFAULT:;@echo WARNING: TARGET HAS NO RULES ...
 
 
 
