@@ -104,6 +104,14 @@ define newline_
 
 endef
 
+# for a warning color text in echo messagea 
+tptnorm_ := tput sgr0
+tptred_ := tput setaf 9 && tput bold
+tptgreen_ := tput setaf 10 && tput bold
+tptyellow_:= tput setaf 11 && tput bold
+tptblue_ := tput setaf 12 && tput bold
+tptpurple_ := tput setaf 13 && tput bold
+tptcyan_ := tput setaf 14 && tput bold
 
 
 ###########################
@@ -119,16 +127,21 @@ main: buildir $(APPDIR)/$(EXECUTABLE)
 
 .PHONY: buildir
 buildir:
-		@mkdir -p $(APPDIR)
-		@mkdir -p $(OBJDIR)
+	@mkdir -p $(APPDIR)
+	@mkdir -p $(OBJDIR)
 
 .PHONY: clean
 clean:
-		-@rm -rvf $(BUILDDIR)
+	-@rm -rvf $(BUILDDIR)
 
 .PHONY: run
 run: all
-		@$(APPDIR)/$(EXECUTABLE)
+	@$(APPDIR)/$(EXECUTABLE)
+
+.PHONY: lint
+lint:
+	@cpplint --recursive --exclude=3rdparty --exclude=external $(PROJECT_ROOT)
+
 
 #==========================
 # GTEST
@@ -139,7 +152,7 @@ gtest: buildir $(APPDIR)/$(GTEST)
 
 .PHONY: gtest.list
 gtest.list: gtest
-		@$(APPDIR)/$(GTEST) --gtest_list_tests;
+	@$(APPDIR)/$(GTEST) --gtest_list_tests;
 
 # ex) make gtest.run
 # ex) make gtest.run 'testgroup.testname'
@@ -147,19 +160,19 @@ gtest.list: gtest
 # ex) make -- gtest.run '*.testname'
 .PHONY: gtest.run
 ifeq (gtest.run,$(firstword $(MAKECMDGOALS)))
-    RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
-    $(eval $(RUN_ARGS):;@:)
+RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+$(eval $(RUN_ARGS):;@:)
 endif
 gtest.run::
-		@echo '**** GTEST START ******************************'
+	@echo '**** GTEST START ******************************'
 gtest.run:: gtest $(info $(MAKECMDGOALS))
-		@if [ "$(RUN_ARGS)" ]; then \
+	@if [ "$(RUN_ARGS)" ]; then \
 		$(APPDIR)/$(GTEST) --gtest_filter=$(RUN_ARGS); \
-		else \
+	else \
 		$(APPDIR)/$(GTEST); \
-		fi
+	fi
 gtest.run::
-		@echo '**** GTEST END ********************************'
+	@echo '**** GTEST END ********************************'
 
 
 
@@ -168,9 +181,9 @@ gtest.run::
 ############################
 .PHONY: forexample
 forexample:
-		@for dir in $(SRCDIRS); do \
+	@for dir in $(SRCDIRS); do \
 		if [[ $$dir ]]; then echo $$dir; else echo empty...; fi \
-		done
+	done
 
 
 
@@ -178,20 +191,20 @@ forexample:
 # PATTERN RULES
 ############################
 $(OBJDIR)/%.o: %.cc
-		@mkdir -p $(@D)
-		$(CXX) $(CXXFLAGS) $(CPPDEFS) $(INCLUDES) -o $@ -c $<
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) $(CPPDEFS) $(INCLUDES) -o $@ -c $<
 
 $(OBJDIR)/%.o: %.cpp
-		@mkdir -p $(@D)
-		$(CXX) $(CXXFLAGS) $(CPPDEFS) $(INCLUDES) -o $@ -c $<
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) $(CPPDEFS) $(INCLUDES) -o $@ -c $<
 
 $(APPDIR)/$(EXECUTABLE): $(MAINOBJS)
-		@mkdir -p $(@D)
-		$(CXX) $(CXXFLAGS) $(CPPDEFS) $(INCLUDES) -o $@ $(MAINOBJS) $(LDFLAGS)
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) $(CPPDEFS) $(INCLUDES) -o $@ $(MAINOBJS) $(LDFLAGS)
 
 $(APPDIR)/$(GTEST): $(GTESTOBJS)
-		@mkdir -p $(@D)
-		$(CXX) $(CXXFLAGS) $(CPPDEFS) $(INCLUDES) -o $@ $(GTESTOBJS) $(LDFLAGS)
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) $(CPPDEFS) $(INCLUDES) -o $@ $(GTESTOBJS) $(LDFLAGS)
 
 
 
@@ -211,21 +224,28 @@ print-%:;$(info $* is a $(flavor $*) variable set to [$($*)])@:
 # TARGETS HAVE NO RULES BUT NO NEED TOBE ERROR
 ############################
 #==========================
-# Prevent to "No rule to make target" ERROR when header file specified in .d is removed from FS.
-define _NOT_TO_MAKE
-$1:;@echo WARNING: TARGET($$@) HAS NO RULES
-endef
-#$(foreach T, $(HDREXT), $(eval $(call _NOT_TO_MAKE,%.$T)))
-
+# Prevent to "No rule to make target" ERROR
+# When header file specified in .d is removed from FS.
+# HDREXT=h hh
 define _NOT_TO_MAKE_EXT
-%.$(ext):;@echo WARNING: Header($$@) is removed
+%.$(1):;@echo `$$(tptred_)`warning`$$(tptnorm_)`: \($$@\) file is missing
 endef
-$(foreach ext, $(HDREXT), $(eval $(_NOT_TO_MAKE_EXT)))
+$(foreach ext, $(HDREXT), $(eval $(call _NOT_TO_MAKE_EXT,$(ext))))
+
+define _NOT_TO_MAKE
+$1:;@echo `$$(tptred_)`warning`$$(tptnorm_)`: DO NOT make \($$@\)
+endef
+# PREFIX=foo bar zoo
+# $(foreach e, $(PREFIX), $(eval $(call _NOT_TO_MAKE,$(e)%)))
+# SUFFIX=.x .y .z
+# $(foreach e, $(SUFFIX), $(eval $(call _NOT_TO_MAKE,%$(e))))
+# FORBIDDEN_TARGET=forbidden
+# $(foreach e, $(FORBIDDEN_TARGET), $(eval $(call _NOT_TO_MAKE,$(e))))
 
 #==========================
 # % and .DEFAULT match with All targets that have no rule.
-#%:;@echo WARNING: TARGET($$@) HAS NO RULES
-#.DEFAULT:;@echo WARNING: TARGET HAS NO RULES ...
+# %:;@echo `$$(tptred_)`warning`$$(tptnorm_)`: TARGET\($$@\) HAS NO RULES
+# .DEFAULT:;@echo `$$(tptred_)`warning`$$(tptnorm_)`: TARGET HAS NO RULES ...
 
 
 

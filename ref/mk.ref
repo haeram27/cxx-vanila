@@ -1,0 +1,160 @@
+
+PROJECT_ROOT := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
+SHELL        := /bin/bash
+
+TARGET	:= $(PROJECT_ROOT)/a.out
+SRCS 	:= src/main.cc
+
+UNITTESTS_EXEC := $(TARGET).test
+UNITTESTS += test/main.unittest.cc
+
+LIBS	:= ssl crypto zip dl uuid
+LIBS	+= sdbus-c++
+LIBS	+= z
+LIBS	+= breakpad_client
+vpath %.a $(PROJECT_ROOT)/3rdparty/lib
+
+OBJS 	:= $(SRCS:.cc=.o)
+DEPS 	:= $(OBJS:.o=.d)
+DEPS    += $(UNITTESTS:.cc=.d)
+
+.PHONY: all clean check unittest
+all: $(TARGET)
+
+clean:
+	-@rm -f $(TARGET) $(OBJS) $(UNITTESTS:.cc=.o) $(DEPS) $(COMPILEDB) $(UNITTESTS_EXEC)
+	-@rm -rf $(CLEAN_TARGETS)
+
+check: unittest
+
+unittest: $(UNITTESTS_EXEC)
+	@$<
+
+$(TARGET): $(OBJS)
+	$(LINK.cc) $^ $(LOADLIBES) $(LDLIBS) -o $@
+
+$(UNITTESTS_EXEC): $(UNITTESTS:.cc=.o) $(filter-out src/main.o, $(OBJS)) $(addprefix -l, gtest gmock gtest_main gmock_main)
+	$(LINK.cc) $^ $(LOADLIBES) $(LDLIBS) -o $@
+
+# Compiler flags {{{{{{
+INCLUDES := $(addprefix $(PROJECT_ROOT)/, include lib 3rdparty/include/breakpad)
+INCLUDES_EXT := $(PROJECT_ROOT)/3rdparty/include
+INCLUDES_EXT += $(PROJECT_ROOT)/3rdparty/include/zip
+
+ifdef DEBUG
+CPPDEFS 	+= DEBUG=$(DEBUG)
+CPPDEFS 	+= _FORTIFY_SOURCE=2 # man 7 feature_test_macros
+CPPDEFS 	+= _GLIBCXX_DEBUG
+else
+CPPDEFS 	+= DEBUG=0
+endif
+
+CPPFLAGS	+= $(addprefix -I,$(INCLUDES))
+CPPFLAGS	+= $(addprefix -isystem,$(abspath $(INCLUDES_EXT)))
+CPPFLAGS	+= $(addprefix -D,$(CPPDEFS))
+
+CXXWARN	+= all
+CXXWARN	+= extra
+CXXWARN	+= double-promotion
+CXXWARN	+= format-security
+CXXWARN	+= null-dereference
+CXXWARN	+= ignored-attributes
+CXXWARN	+= missing-include-dirs
+CXXWARN	+= unused
+CXXWARN	+= missing-format-attribute
+CXXWARN	+= float-equal
+CXXWARN	+= undef
+CXXWARN	+= cast-qual
+CXXWARN	+= cast-align
+CXXWARN	+= conversion
+CXXWARN	+= zero-as-null-pointer-constant
+CXXWARN	+= date-time
+CXXWARN	+= delete-incomplete
+CXXWARN	+= missing-declarations
+CXXWARN	+= redundant-decls
+CXXWARN	+= inline
+CXXWARN	+= disabled-optimization
+CXXWARN	+= overlength-strings
+
+CXXFLAGS	+= -std=c++17 -MMD -g -pipe -W $(addprefix -W,$(CXXWARN))
+CXXFLAGS	+= -fcf-protection=return
+CXXFLAGS	+= -ffile-prefix-map=$(abspath $(PROJECT_ROOT))=.
+CXXFLAGS	+= -fexceptions
+CXXFLAGS	+= -fstack-protector-strong
+ifndef DEBUG
+CXXFLAGS	+= -O2
+else
+CXXFLAGS	+= -O0 -Og -ggdb3 -grecord-gcc-switches
+CXXFLAGS	+= -fasynchronous-unwind-tables
+CXXFLAGS	+= -fsanitize-address-use-after-scope
+CXXFLAGS	+= -fbounds-check
+CXXFLAGS    += -fno-omit-frame-pointer
+CXXFLAGS    += -Wno-inline
+
+CXXSANITIZE	+= address
+CXXSANITIZE	+= leak
+CXXSANITIZE	+= undefined
+CXXSANITIZE	+= shift
+CXXSANITIZE	+= shift-base
+CXXSANITIZE	+= shift-exponent
+CXXSANITIZE	+= integer-divide-by-zero
+CXXSANITIZE	+= unreachable
+CXXSANITIZE	+= vla-bound
+CXXSANITIZE	+= null
+CXXSANITIZE	+= return
+CXXSANITIZE	+= signed-integer-overflow
+CXXSANITIZE	+= alignment
+CXXSANITIZE	+= object-size
+CXXSANITIZE	+= float-divide-by-zero
+CXXSANITIZE	+= float-cast-overflow
+CXXSANITIZE	+= nonnull-attribute
+CXXSANITIZE	+= returns-nonnull-attribute
+CXXSANITIZE	+= bool
+CXXSANITIZE	+= enum
+CXXSANITIZE	+= vptr
+ifeq ($(firstword $(sort $(DEBUG) 2)),  2)	# if 1 < DEBUG
+CXXFLAGS	+= $(addprefix -fsanitize=,$(CXXSANITIZE))
+LIBSANITIZE += -static-libasan -static-libtsan -static-liblsan -static-libubsan
+endif
+endif
+# }}}}}}
+
+# Linker flags {{{
+LDFLAGS += $(addprefix -L$(PROJECT_ROOT)/, lib 3rdparty/lib)
+LDFLAGS += -static-libstdc++ -static-libgcc
+LDFLAGS += -Wl,-rpath,'$$ORIGIN'/../lib
+LDFLAGS += $(LIBSANITIZE)
+
+ARFLAGS		= rvUT
+# }}}
+
+# compiledb {{{
+COMPILEDB	:= compile_commands.json
+define COMPILEDB_RECIPE # {{{
+(cat $(COMPILEDB) 2>&- || echo -n '[]') | \
+	jq '[{\
+				"file":"$<",\
+				"directory":"$(abspath $(PROJECT_ROOT))",\
+				"command":"$(subst -MMD ,,$(COMPILE.cc)) $<"\
+		}] + . \
+		| unique_by(.directory + "." + .file)'\
+	| sponge $(COMPILEDB)
+endef # }}}
+# }}}
+
+# Define common libraries {{{
+LIBS += pthread
+LDLIBS = $(addprefix -l,$(LIBS))
+# }}}
+
+# targets {{{
+%.o: %.cc
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+	-@$(call COMPILEDB_RECIPE)
+# }}}
+
+lint:
+	@cpplint --recursive --exclude=3rdparty $(PROJECT_ROOT)
+
+-include $(DEPS)
+# vim:ts=4 sw=4 noet fdm=marker:
