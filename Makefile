@@ -6,6 +6,7 @@
 ###########################
 # PATHS
 ###########################
+PROJECT_ROOT := $(abspath $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST)))))
 EXECUTABLE := a.out
 BUILDDIR := build
 
@@ -140,7 +141,7 @@ run: all
 
 .PHONY: lint
 lint:
-	@cpplint --recursive --exclude=3rdparty --exclude=external $(PROJECT_ROOT)
+	@cpplint --recursive --exclude=external $(PROJECT_ROOT)
 
 
 #==========================

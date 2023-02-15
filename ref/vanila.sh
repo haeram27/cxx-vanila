@@ -105,11 +105,12 @@ func.rest.request() {
 # help
 func.help() {
 cat <<HELP
-$(basename $0) Usage:
-           -h        help.
-           -q        rest rquest.
-           -t        time.
-           -u        set utc time when using with -t.
+$(basename $0) - Print rule and variable in makefile
+Usage: $(basename $0) [options...]
+    -h    help.
+    -q    rest rquest.
+    -t    time.
+    -u    set utc time when using with -t.
 HELP
 }
 
