@@ -7,9 +7,7 @@ IMODE="imod.main"
 VMODE_TIMEUTC="no"
 
 
-##############
-# VAR COMMON
-##############
+# VARS COMMON {{{
 # echo color message:: (recommended) support all type shell
 # echo ${TPTRED}----------------------------------
 # echo ${TPTRED}warning${TPTNORM}: something wrong
@@ -32,8 +30,19 @@ TPTPURPLE=$(tput setaf 13 && tput bold)
 TPTCYAN=$(tput setaf 14 && tput bold)
 TPTWHITE=$(tput setaf 15 && tput bold)
 
-# make random string
-# RAND_STR=$(uuidgen | tr -d '-')$(date -u +%Y%m%d%H%M%S%N)
+# *** make random string
+# RANDSTR64=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 64 | sed 1q)
+# RANDSTRDATE64=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 40 | sed 1q)$(date -u +%Y%m%d%H%M%S%N)
+# RANDSTRDATE56=$(uuidgen | tr -d '-')$(date -u +%Y%m%d%H%M%S%N)
+
+# *** ENVENCKEY: $ base64 mysecretkey
+# ENCKEY=$(base64 -d <<< ${ENVENCKEY})
+# *** ENVENCITR: $ base64 1234
+# ENCITR=$(base64 -d <<< ${ENVENCITR})
+# *** ENCSECRET
+# *** openssl enc -k ${ENCKEY} -aes-256-cbc -a -md sha512 -pbkdf2 -iter ${ENCITR} -salt <<< text.plain
+# *** openssl enc -k ${ENCKEY} -aes-256-cbc -a -md sha512 -pbkdf2 -iter ${ENCITR} -salt -in file.plain -out file.enc
+# }}}
 
 
 ##############
@@ -139,3 +148,5 @@ case $IMODE in
 esac
 
 exit 0
+
+### vim:ts=4 sw=4 noet fdm=marker:
