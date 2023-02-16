@@ -18,20 +18,14 @@ SRCDIRS = $(shell find $(SRCROOTDIR) -type d)
 SRCINC = $(addprefix -I,$(SRCROOTDIR))
 
 HDREXT := h hh hpp hxx h++
-CPPEXT := cc cpp
+CXXEXT := cc cpp
 CXXSRCS = $(foreach dir,$(SRCDIRS),\
-          $(foreach ext,$(CPPEXT),$(wildcard $(dir)/*.$(ext))))
-#CPPFILES != find $(SRCROOTDIR) -name "*.cpp"
-#CPPFILES = $(shell find $(SRCROOTDIR) -name '*.cpp')
-#CPPFILES = $(foreach dir,$(SRCDIRS),$(wildcard $(dir)/*.cpp))
-#CCFILES != find $(SRCROOTDIR) -name "*.cc"
-#CCFILES = $(shell find $(SRCROOTDIR) -name '*.cc')
-#CCFILES = $(foreach dir,$(SRCDIRS),$(wildcard $(dir)/*.cc))
-SRCS = $(CXXSRCS) $(CPPFILES) $(CCFILES)
+          $(foreach ext,$(CXXEXT),$(wildcard $(dir)/*.$(ext))))
+SRCS = $(CXXSRCS)
 
 _FILTER_OUT = $(foreach v,$(2),$(if $(findstring $(1),$(v)),,$(v)))
 MAINSRCS = $(call _FILTER_OUT,_test.,$(SRCS))
-MAINOBJS = $(filter %.o,$(foreach ext,$(CPPEXT),$(MAINSRCS:%.$(ext)=$(OBJDIR)/%.o)))
+MAINOBJS = $(filter %.o,$(foreach ext,$(CXXEXT),$(MAINSRCS:%.$(ext)=$(OBJDIR)/%.o)))
 MAINDEPS = $(MAINOBJS:%o=%d)
 
 
@@ -46,7 +40,7 @@ GTESTINC := -Iexternal/googletest/include
 GTESTLIB := -Lexternal/googletest -lgtest_main -lgtest
 # excludes other main() objects for gtest_main
 GTESTOBJS = $(filter-out %main.o,$(filter %.o,\
-            $(foreach ext,$(CPPEXT),$(SRCS:%.$(ext)=$(OBJDIR)/%.o))))
+            $(foreach ext,$(CXXEXT),$(SRCS:%.$(ext)=$(OBJDIR)/%.o))))
 GTESTDEPS = $(GTESTOBJS:%o=%d)
 
 #==========================
@@ -66,7 +60,7 @@ NLOHMANNJSONINC := -Iexternal/json/nlohmannjson
 DEBUG := yes
 
 # basic
-CXXFLAGS =  -MMD -pthread -std=c++17
+CXXFLAGS += -MMD -pthread -std=c++17
 
 # optimization / debugging
 ifeq ($(strip $(DEBUG)),yes)
@@ -76,14 +70,14 @@ CXXFLAGS += -O
 endif
 
 # warning/error
-CXXFLAGS = -Wfatal-errors
+CXXFLAGS += -Wfatal-errors
 ifeq ($(strip $(DEBUG)),yes)
 CXXFLAGS += -W -Wall
 ifeq ($(strip $(ROBUST)),yes)
 CXXFLAGS += -Wextra -Werror
 endif  # ROBUST
 else
-CXXFLAGS = -w
+CXXFLAGS += -w
 endif  # DEBUG
 
 # etc
@@ -92,29 +86,27 @@ CXXFLAGS += -fcf-protection=return
 CXXFLAGS += -fstack-protector-strong
 CXXFLAGS += -fexceptions
 
-# CPPDEFS ---------------------------------------------
-#CPPDEFS += -D__DEPRECATED
+# CPPFLAGS ---------------------------------------------
+#CPPFLAGS += -D__DEPRECATED
 ifeq ($(strip $(DEBUG)),yes)
-CPPDEFS += -DDEBUG
+CPPFLAGS += -DDEBUG
 endif
-#CPPFLAGS += $(addprefix -D,$(CPPDEFS))
 
 
 # INCLUDES ---------------------------------------------
 INCLUDES = $(SRCINC) $(NLOHMANNJSONINC) $(SPDLOGINC)
-#CPPFLAGS += $(addprefix -I,$(INCLUDES))
+CPPFLAGS += $(INCLUDES)
 
 
 # LDFLAGS ---------------------------------------------
-LDFLAGS = -lstdc++ -lm
+LDFLAGS += -lstdc++ -lm
 LDFLAGS += -Wl,-rpath,'$$ORIGIN'/../lib
 #LDFLAGS  = $(addprefix -L,$(LIB_DIRS))
 ifeq ($(strip $(DEBUG)),yes)
 LDFLAGS += -static-libgcc -static-libstdc++
 endif
 
-#ARFLAGS = rvUT
-#LINT.cc := cpplint --quiet
+ARFLAGS := rvUT
 
 
 
@@ -208,30 +200,22 @@ gtest.run::
 
 
 ############################
-# TARGETS EXAMPLE
-############################
-
-
-
-
-############################
 # PATTERN RULES
 ############################
-$(OBJDIR)/%.o: %.cc
-	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) $(CPPDEFS) $(INCLUDES) -o $@ -c $<
-
-$(OBJDIR)/%.o: %.cpp
-	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) $(CPPDEFS) $(INCLUDES) -o $@ -c $<
+define COMPILE_OBJECTS
+$(OBJDIR)/%.o: %.$(1)
+	@mkdir -p $$(@D)
+	$$(COMPILE.cc) -o $$@ $$<
+endef
+$(foreach ext, $(CXXEXT), $(eval $(call COMPILE_OBJECTS,$(ext))))
 
 $(APPDIR)/$(EXECUTABLE): $(MAINOBJS)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) $(CPPDEFS) $(INCLUDES) -o $@ $(MAINOBJS) $(LDFLAGS)
+	$(LINK.cc) -o $@ $^
 
 $(APPDIR)/$(GTEST): $(GTESTOBJS)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) $(CPPDEFS) $(INCLUDES) -o $@ $(GTESTOBJS) $(LDFLAGS)
+	$(LINK.cc) -o $@ $^
 
 
 
