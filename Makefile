@@ -60,28 +60,52 @@ NLOHMANNJSONINC := -Iexternal/json/nlohmannjson
 
 
 ###########################
-# COMPILE ENV
+# COMPILER FLAGS
 ###########################
+# CXXFLAGS ---------------------------------------------
 DEBUG := yes
 
-CXXFLAGS = -Wfatal-errors -W -Wall -MMD -pthread -std=c++17
-CXXFLAGS_ROBUST = $(CXXFLAGS) -pedantic-errors -Wextra -Werror
-#CXXFLAGS += -ffile-prefix-map=$(abspath $(PROJECT_ROOT))=.
+# basic
+CXXFLAGS =  -MMD -pthread -std=c++17
+
+# optimization / debugging
 ifeq ($(strip $(DEBUG)),yes)
-CXXFLAGS += -Og
+CXXFLAGS += -Og -g
 else
 CXXFLAGS += -O
 endif
 
+# warning/error
+CXXFLAGS = -Wfatal-errors
+ifeq ($(strip $(DEBUG)),yes)
+CXXFLAGS += -W -Wall
+ifeq ($(strip $(ROBUST)),yes)
+CXXFLAGS += -Wextra -Werror
+endif  # ROBUST
+else
+CXXFLAGS = -w
+endif  # DEBUG
+
+# etc
+CXXFLAGS += -ffile-prefix-map=$(abspath $(PROJECT_ROOT))=.
+CXXFLAGS += -fcf-protection=return
+CXXFLAGS += -fstack-protector-strong
+CXXFLAGS += -fexceptions
+
+# CPPDEFS ---------------------------------------------
 #CPPDEFS += -D__DEPRECATED
 ifeq ($(strip $(DEBUG)),yes)
 CPPDEFS += -DDEBUG
 endif
 #CPPFLAGS += $(addprefix -D,$(CPPDEFS))
 
+
+# INCLUDES ---------------------------------------------
 INCLUDES = $(SRCINC) $(NLOHMANNJSONINC) $(SPDLOGINC)
 #CPPFLAGS += $(addprefix -I,$(INCLUDES))
 
+
+# LDFLAGS ---------------------------------------------
 LDFLAGS = -lstdc++ -lm
 LDFLAGS += -Wl,-rpath,'$$ORIGIN'/../lib
 #LDFLAGS  = $(addprefix -L,$(LIB_DIRS))
@@ -143,6 +167,12 @@ run: all
 lint:
 	@cpplint --recursive --exclude=external $(PROJECT_ROOT)
 
+.PHONY: forexample
+forexample:
+	@for dir in $(SRCDIRS); do \
+		if [[ $$dir ]]; then echo $$dir; else echo empty...; fi \
+	done
+
 
 #==========================
 # GTEST
@@ -180,11 +210,7 @@ gtest.run::
 ############################
 # TARGETS EXAMPLE
 ############################
-.PHONY: forexample
-forexample:
-	@for dir in $(SRCDIRS); do \
-		if [[ $$dir ]]; then echo $$dir; else echo empty...; fi \
-	done
+
 
 
 
