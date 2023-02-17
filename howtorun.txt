@@ -3,7 +3,8 @@ main$ make run
 
 main$ make -j`nproc` run
 
-main$ ./makep run
+main$ ./makep.sh
+main$ ./makep.sh run
 
 
 <compile and run> gtest ==========================
@@ -17,16 +18,17 @@ main$ make -j`nproc` gtest.run VanilaTest.test1
 main$ make -j`nproc` gtest.run "VanilaTest.*"
 main$ make -j`nproc` gtest.run VanilaTest.\*
 
-main$ ./makep gtest.run VanilaTest.test1
-main$ ./makep gtest.run "VanilaTest.*"
-main$ ./makep gtest.run VanilaTest.\*
+main$ ./makep.sh gtest.run VanilaTest.test1
+main$ ./makep.sh gtest.run "VanilaTest.*"
+main$ ./makep.sh gtest.run VanilaTest.\*
 
 ## ./makeg is only for gtest
-main$ ./makeg VanilaTest.test1
-main$ ./makeg VanilaTest.*"
-main$ ./makeg VanilaTest.\*
+main$ ./makeg.sh VanilaTest.test1
+main$ ./makeg.sh VanilaTest.*"
+main$ ./makeg.sh VanilaTest.\*
 
 
 
 <clean> ==========================================
 main$ make clean
+main$ makep.sh clean
