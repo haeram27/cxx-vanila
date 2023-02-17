@@ -79,7 +79,7 @@ done
 case $IMODE in
     "imod.help") func.help ;;
     "imod.main") func.main ;;
-    "imod.all") func.printall;;
+    "imod.all") func.printall ;;
     *) exit 1 ;;
 esac
 

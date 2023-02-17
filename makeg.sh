@@ -10,7 +10,7 @@ if type bc &>/dev/null; then
     if [[ -z $1 ]]; then
         make -j $(printf %.0f `echo "${ncores}*1.2" | bc`) gtest.list
     else 
-        make -j $(printf %.0f `echo "${ncores}*1.2" | bc`) gtest.run "$1"
+        make -j $(printf %.0f `echo "${ncores}*1.2" | bc`) gtest.run $*
     fi
 else
     echo error: bc is NOT installed

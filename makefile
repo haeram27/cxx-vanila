@@ -57,7 +57,6 @@ NLOHMANNJSONINC := -Iexternal/json/nlohmannjson
 # COMPILER FLAGS
 ###########################
 # CXXFLAGS ---------------------------------------------
-DEBUG := yes
 
 # basic
 CXXFLAGS += -std=c++17

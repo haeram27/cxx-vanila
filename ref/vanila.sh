@@ -144,7 +144,7 @@ case $IMODE in
     "imod.help") func.help ;;
     "imod.main") func.main ;;
     "imod.time") func.gettime ;;
-    "imod.rest") func.rest.request;;
+    "imod.rest") func.rest.request ;;
     *) exit 1 ;;
 esac
 
