@@ -60,7 +60,7 @@ NLOHMANNJSONINC := -Iexternal/json/nlohmannjson
 DEBUG := yes
 
 # basic
-CXXFLAGS += -MMD -pthread -std=c++17
+CXXFLAGS += -std=c++17
 
 # optimization / debugging
 ifeq ($(strip $(DEBUG)),yes)
@@ -72,7 +72,7 @@ endif
 # warning/error
 CXXFLAGS += -Wfatal-errors
 ifeq ($(strip $(DEBUG)),yes)
-CXXFLAGS += -W -Wall
+CXXFLAGS += -Wall
 ifeq ($(strip $(ROBUST)),yes)
 CXXFLAGS += -Wextra -Werror
 endif  # ROBUST
@@ -86,25 +86,24 @@ CXXFLAGS += -fcf-protection=return
 CXXFLAGS += -fstack-protector-strong
 CXXFLAGS += -fexceptions
 
+# INCLUDES ---------------------------------------------
+INCLUDES = $(SRCINC) $(NLOHMANNJSONINC) $(SPDLOGINC)
+CXXFLAGS += $(INCLUDES)
+
 # CPPFLAGS ---------------------------------------------
+CPPFLAGS += -pthread -MMD
 #CPPFLAGS += -D__DEPRECATED
 ifeq ($(strip $(DEBUG)),yes)
 CPPFLAGS += -DDEBUG
 endif
 
-
-# INCLUDES ---------------------------------------------
-INCLUDES = $(SRCINC) $(NLOHMANNJSONINC) $(SPDLOGINC)
-CPPFLAGS += $(INCLUDES)
-
-
 # LDFLAGS ---------------------------------------------
 LDFLAGS += -lstdc++ -lm
-LDFLAGS += -Wl,-rpath,'$$ORIGIN'/../lib
 #LDFLAGS  = $(addprefix -L,$(LIB_DIRS))
 ifeq ($(strip $(DEBUG)),yes)
 LDFLAGS += -static-libgcc -static-libstdc++
 endif
+LDFLAGS += -Wl,-rpath,'$$ORIGIN'/../lib
 
 ARFLAGS := rvUT
 
@@ -140,7 +139,7 @@ tptcyan_ := tput setaf 14 && tput bold
 all: main
 
 .PHONY: main
-main: buildir $(APPDIR)/$(EXECUTABLE)
+main: $(APPDIR)/$(EXECUTABLE)
 
 .PHONY: buildir
 buildir:
@@ -216,7 +215,6 @@ $(APPDIR)/$(EXECUTABLE): $(MAINOBJS)
 $(APPDIR)/$(GTEST): $(GTESTOBJS)
 	@mkdir -p $(@D)
 	$(LINK.cc) -o $@ $^
-
 
 
 ############################
