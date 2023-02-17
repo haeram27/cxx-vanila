@@ -12,6 +12,7 @@ VMODE_TIMEUTC="no"
 # echo ${TPTRED}----------------------------------
 # echo ${TPTRED}warning${TPTNORM}: something wrong
 # echo ${TPTRED}----------------------------------
+# echo 123GREEN123 | sed -u -e "s/\(GREEN\)/${TPTGREEN}\1${TPTNORM}/gi"
 TPTNORM=$(tput sgr0)
 TPTDBLACK=$(tput setaf 0 && tput bold)
 TPTDRED=$(tput setaf 1 && tput bold)
